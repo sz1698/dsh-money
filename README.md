@@ -16,13 +16,16 @@
 
 ## 特性
 
-- ⏱ **定时 + 手动双通道**：挂载即取一次，之后**每 60 秒静默自动刷新**；点一下余额 = 立刻强制刷新（跳过宿主缓存）。
+- ⏱ **定时 + 手动双通道**：挂载即取一次，之后按设定间隔**静默自动刷新（默认 60 秒）**；点一下余额 = 立刻强制刷新（跳过宿主缓存）。
 - ⟳ **刷新可见**：手动刷新时显示**转圈 + 「获取余额中」**，拿到结果（成功或失败）特效立刻消失。
 - 🛡 **防抖**：请求在飞时点击一律忽略（连点只会有一个请求）；手动刷新还有 700ms 冷却。
 - 📐 **两种形态**：侧栏展开时整行 `余额：¥100.34`；折叠成 56px 轨道时自动变成紧凑金额 `¥100` / `¥1.2k`。
+- 🎛 **可在设置里调**：自动刷新间隔、小数位数、是否显示「余额：」前缀、是否允许点击强制刷新 ——
+  入口是 **设置 → 插件 → 可配置 → 「余额挂件」**，改完即时生效、无需重启。
 - 🧯 **失败不闪数字**：上游超时/5xx 时沿用上一次成功金额（tooltip 标「余额未刷新」）；从未成功过才显示 `余额：--`，并给出原因。
 - 🔑 **密钥不落配置**：只用 DSH 凭据服务里的 `DEEPSEEK_API_KEY`，插件配置文件里不出现任何密钥。
-- 🪶 **零依赖、无构建**：宿主半是普通 ESM，浏览器半是手写客户端 bundle；没有 npm 依赖，也没有打包步骤。
+- 🪶 **无构建步骤**：宿主半是普通 ESM，浏览器半是手写客户端 bundle（DSH 只要求 closure 契约）；
+  唯一运行时依赖是 `@deepseek-ai/schemastery`（注册设置项 schema 用，DSH 官方插件同样依赖它）。
 
 ## 安装
 
@@ -118,11 +121,21 @@ document.querySelector('[data-testid="dsh-money"]').dataset.busy   // 非空 = �
 
 ## 配置
 
-没有配置文件 —— 想要不同行为就改几个常数（改完刷新页面即生效）：
+打开 **设置 → 插件 → 可配置 → 「余额挂件」**（这个卡片就是本插件自己提供的）：
+
+| 设置项 | 可选值 | 默认 | 说明 |
+|---|---|---|---|
+| 自动刷新间隔 | 10 / 30 / 60 / 120 / 300 / 600 秒 | 60 秒 | 定时静默刷新的周期 |
+| 小数位数 | 0–4 位 | 2 位 | 只影响显示，不影响取到的精确值 |
+| 显示「余额：」前缀 | 开 / 关 | 开 | 关掉后只显示金额 |
+| 允许点击强制刷新 | 开 / 关 | 开 | 关掉后余额行纯只读，不响应点击 |
+
+改动立即生效（宿主持久化，页面即时跟随），无需重启 DSH。
+
+其它常数（想改就得动源码，改完刷新页面即生效）：
 
 | 想要什么 | 常数 | 位置 | 默认 |
 |---|---|---|---|
-| 自动刷新间隔 | `REFRESH_MS` | `lib/client.js` | `60000`（60 秒） |
 | 手动刷新冷却 | `MANUAL_COOLDOWN_MS` | `lib/client.js` | `700`（毫秒） |
 | 币种符号 | `SYMBOL` | `lib/client.js` | `¥ $ € £ ¥` |
 | 宿主侧余额缓存 | `CACHE_MS` | `lib/index.js` | `25000`（25 秒） |
@@ -135,9 +148,13 @@ document.querySelector('[data-testid="dsh-money"]').dataset.busy   // 非空 = �
 ────────────────────────────                 ────────────────────────────
 BalanceBadge 挂到 sidebar.footer.action 席位
   │ fetch /api/dsh-money  ◄── 已鉴权通道 ──►  connection.fetch.register
-  │ 60s 定时 / 点击 ?refresh=1                credentials.resolve(DEEPSEEK_API_KEY)
+  │ 定时（设置里的间隔）/ 点击 ?refresh=1     credentials.resolve(DEEPSEEK_API_KEY)
   └ 渲染「余额：¥xxx」                        fetch api.deepseek.com/user/balance
                                              （25 秒内存缓存 + 在途去重 + 瞬时失败沿用旧值）
+
+BalanceSettingsCard 挂到 settings.plugin.item
+  ▲ 读写同一个 settings 命名空间 dsh-money
+  └ 设置 → 插件 → 可配置 里的「余额挂件」卡片  ◄── settings.register('dsh-money', schema)
 ```
 
 - **宿主半**（`lib/index.js`）只做取数，并经 **DSH 已鉴权的 `/api` 通道**下发。该通道自带
@@ -146,6 +163,9 @@ BalanceBadge 挂到 sidebar.footer.action 席位
   `window.__ModuleLoader__.load({ id, factory })` 这一层 closure 契约，缺 sourcemap 也照跑），
   注册到官方声明的加性席位 `sidebar.footer.action` —— 也就是 `.footArea` 里 `sidebar.settings`
   的正上方。不改 DSH 前端，也不往 React 管理的 DOM 里塞节点。
+- **设置卡片**：插件在宿主注册 settings 命名空间 `dsh-money`，并在浏览器按**同一个 key**
+  往 `settings.plugin.item` 注册卡片 —— 「可配置」页签按命名空间列表渲染卡片，宿主不需要知道
+  卡片长什么样。这也是插件出现在「设置 → 插件 → 可配置」里的机制。
 
 ## 目录结构
 
@@ -155,7 +175,7 @@ dsh-money/
 ├── cordis.patch.yml    # bundle 挂载声明（dsh plugin add 用；手工装时不用它）
 ├── lib/
 │   ├── index.js        # 宿主半：凭据 → 余额接口 → /api/dsh-money
-│   └── client.js       # 浏览器半：注入样式 + 席位组件（余额 / 刷新态 / 紧凑态）
+│   └── client.js       # 浏览器半：注入样式 + 余额行 + 设置卡片（两个 slot）
 ├── test/smoke.mjs      # 零依赖契约冒烟测试
 └── LICENSE             # MIT
 ```
@@ -166,7 +186,8 @@ dsh-money/
 dsh plugin --profile web remove dsh-money
 ```
 
-手工装的（方式 D）：删掉 patch 里那两行，刷新页面即可。
+手工装的（方式 D）：删掉 patch 里那两行，刷新页面即可。插件在设置里的命名空间会随之消失
+（用户层残留的 `dsh-money:` 段不影响别的插件）。
 
 ## 已知限制
 

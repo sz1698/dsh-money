@@ -1,7 +1,7 @@
 {
   "name": "dsh-money",
-  "version": "0.1.0",
-  "description": "DSH 插件：在侧栏底部（设置按钮正上方）常驻显示 DeepSeek 余额「余额：¥xxx」。定时 60 秒自动刷新，点击可强制刷新（转圈 + 获取余额中 + 防抖）。",
+  "version": "0.2.0",
+  "description": "DSH 插件：在侧栏底部（设置按钮正上方）常驻显示 DeepSeek 余额「余额：¥xxx」。定时自动刷新（间隔可调），点击可强制刷新（转圈 + 获取余额中 + 防抖）；设置项在「设置 → 插件 → 可配置」里。",
   "type": "module",
   "license": "MIT",
   "author": "sz1698",
@@ -53,5 +53,8 @@
       ],
       "immediately": true
     }
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.2"
   }
 }
