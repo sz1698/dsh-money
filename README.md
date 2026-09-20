@@ -220,6 +220,9 @@ dsh plugin --profile web remove dsh-money
 
 - 只显示 **DeepSeek 官方接口能查到的余额**（`/user/balance`），不提供消费流水。
 - 余额是**快照**：接口不返回流水，充值/扣费发生在两次刷新之间时只能看到净变化。
+- **包名与 npm 上的同名包冲突**：npm 的 `dsh-money` 是另一个项目（`yanhuifair`，功能相近），
+  所以本插件不能（也不该）从 npm 安装，请用 GitHub 或 `link:`。两者若被同时装进同一个 profile，
+  DSH 会因「同名包解析到多个活动 Loader 源」而拒绝启动相关插件。
 - DSH 处于 developer preview，席位名与 `/api` 通道语义可能随版本变化；插件不生效时先看
   `dsh --profile web --dump-config` 里有没有 `dsh-money`。
 
