@@ -1,0 +1,19 @@
+# DSH 插件仓库：只有源码与文档入库
+node_modules/
+pnpm-lock.yaml
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+
+# 本机排障产物（正常不该出现在仓库里）
+dump-config.txt
+.dsh-money-diag.json
+
+# DSH 运行时数据（正常在 $DSH_HOME 下，若落到仓库目录也不入库）
+.dshw-*.json
+.dshw-*.json.bak*
+.credentials.yaml

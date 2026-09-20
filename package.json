@@ -1,0 +1,57 @@
+{
+  "name": "dsh-money",
+  "version": "0.1.0",
+  "description": "DSH 插件：在侧栏底部（设置按钮正上方）常驻显示 DeepSeek 余额「余额：¥xxx」。定时 60 秒自动刷新，点击可强制刷新（转圈 + 获取余额中 + 防抖）。",
+  "type": "module",
+  "license": "MIT",
+  "author": "sz1698",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "deepseek",
+    "balance",
+    "sidebar"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sz1698/dsh-money.git"
+  },
+  "homepage": "https://github.com/sz1698/dsh-money#readme",
+  "bugs": {
+    "url": "https://github.com/sz1698/dsh-money/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/**",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node test/smoke.mjs"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar"
+      ],
+      "immediately": true
+    }
+  }
+}

@@ -1,0 +1,17 @@
+# dsh-money —— DSH bundle patch
+# ============================================================================
+# 插件的「挂载声明」：dsh 启动时按 bundle 层栈叠加各插件 patch，本文件把
+# dsh-money 插入 Web profile 的配置树。
+#
+# 安装（二选一）：
+#   A) dsh plugin --profile web add link:<本目录绝对路径>
+#   B) 手工在 $DSH_HOME/profiles/web/cordis.patch.yml 里加一行（本机没有 dsh CLI
+#      时用这条，本机 dsh-bg-switch 就是这么装的）：
+#        - insert:
+#            - id: dsh-money
+#              name: 'file:///C:/project/deepseek-workspace/dsh-money/lib/index.js'
+# ============================================================================
+
+- insert:
+    - id: dsh-money
+      name: dsh-money
