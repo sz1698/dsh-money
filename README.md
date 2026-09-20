@@ -77,8 +77,18 @@ dsh plugin --profile web add link:D:\path\to\dsh-money
 ```
 
 - 路径必须写成**绝对 `file:///` URL**；
+- **先在这个目录里跑一次 `npm install`**：这种装法由 Node 直接从插件目录解析依赖，而注册设置项
+  需要 `@deepseek-ai/schemastery`（方式 B / C 由 pnpm 自动装，手工装没人替你装）；
 - profile 的 `patchReload` 是 `live`：宿主半改动**不必重启 DSH**，但**每次改 `lib/index.js` 都要把 `?v=N` 加一**，否则会继续跑 ESM 缓存里的旧代码（原因见 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)）；
 - 浏览器半是新的客户端模块行，**需要刷新一次页面**（F5）才会挂上。
+
+### 装完在哪看它
+
+- **设置 → 插件 → 插件列表**：能看到这个 loader 条目（手工装时模块名是那条 `file:///` 路径，
+  用包名装时显示包名），运行状态应为「运行中」；页签里有搜索框。
+- **设置 → 插件 → 可配置**：能看到 **「余额挂件」** 卡片 —— 这张卡片由插件自己提供，
+  四项设置都在这里改（见 [配置](#配置)）。
+- **侧栏底部**：余额那一行，紧贴「设置」上方。
 
 ### 装完自检
 
@@ -89,12 +99,19 @@ $tok = (Select-String -Path $log -Pattern 'token=([A-Za-z0-9_\-]+)' | Select-Obj
 $jar = "$env:TEMP\dsh-money-cookies.txt"
 curl.exe -s -o NUL -c $jar "http://127.0.0.1:57321/?token=$tok"
 
-# 读余额（?refresh=1 绕过宿主 25 秒缓存）
+# 1) 读余额（?refresh=1 绕过宿主 25 秒缓存）
 curl.exe -s -b $jar "http://127.0.0.1:57321/api/dsh-money"
-# → {"ok":true,"balance":100.34,"currency":"CNY","updatedAt":"2026-09-20T03:27:42.993Z"}
+# → {"ok":true,"balance":78.23,"currency":"CNY","updatedAt":"2026-09-20T10:17:49.465Z"}
 
-# 确认客户端模块行已被识别（SSE 首帧是整张 boot graph）
+# 2) 确认客户端模块行已被识别（SSE 首帧是整张 boot graph）
 curl.exe -s --max-time 5 -N "http://127.0.0.1:57321/plugins/events" | Select-String 'dsh-money'
+
+# 3) 确认设置命名空间已注册（它决定插件能不能出现在「可配置」页签里）
+$rpcId = [guid]::NewGuid().ToString()
+$body = @{ type='client-request'; rpcId=$rpcId; method='settings/describe'; payload=@{ args=@{} } } | ConvertTo-Json -Depth 6 -Compress
+$bf = "$env:TEMP\dsh-money-rpc.json"; [System.IO.File]::WriteAllText($bf, $body, (New-Object System.Text.UTF8Encoding($false)))
+curl.exe -s -b $jar -H "content-type: application/json" --data-binary "@$bf" "http://127.0.0.1:57321/api/settings/describe" |
+  Select-String 'dsh-money'     # 出现在 namespaces 里 = 注册成功
 ```
 
 > 端口按实际 `dsh web` 的地址替换（桌面版复用同一个端口）。
@@ -110,6 +127,7 @@ curl.exe -s --max-time 5 -N "http://127.0.0.1:57321/plugins/events" | Select-Str
 | **点击刷新** | 立即转圈 + 「获取余额中」+ 底色点亮 + `cursor: progress`；返回后特效消失 |
 | **防抖** | 请求在飞时点击忽略；手动刷新 700ms 冷却 |
 | 鼠标悬停 | tooltip：完整金额 + 最近更新时间 + 错误原因（若有） |
+| **改设置** | 立即生效：间隔改动会重起定时器，前缀/小数位/点击开关立刻反映到余额行 |
 | 上游超时 / 5xx | 沿用上一次成功金额，tooltip 标「余额未刷新」 |
 | 没配密钥 / 返回结构异常 | 首次显示 `余额：…`，拿到错误后显示 `余额：--`，tooltip 给出原因 |
 
@@ -174,10 +192,12 @@ dsh-money/
 ├── package.json        # dsh.bundle.patch + dsh.client（platform / inject / immediately）
 ├── cordis.patch.yml    # bundle 挂载声明（dsh plugin add 用；手工装时不用它）
 ├── lib/
-│   ├── index.js        # 宿主半：凭据 → 余额接口 → /api/dsh-money
+│   ├── index.js        # 宿主半：凭据 → 余额接口 → /api/dsh-money + 注册设置命名空间
 │   └── client.js       # 浏览器半：注入样式 + 余额行 + 设置卡片（两个 slot）
-├── test/smoke.mjs      # 零依赖契约冒烟测试
-└── LICENSE             # MIT
+├── test/smoke.mjs      # 零依赖契约冒烟测试（node test/smoke.mjs）
+├── docs/DEVELOPMENT.md # 改代码前要看：契约、两个实测陷阱、布局自检
+├── LICENSE             # MIT
+└── package-lock.json
 ```
 
 ## 卸载
@@ -205,11 +225,13 @@ dsh plugin --profile web remove dsh-money
 ## 开发
 
 ```powershell
-node test/smoke.mjs     # 契约 / 换行样式 / 三套渲染 / 点击防抖
+npm install             # 首次：装 @deepseek-ai/schemastery（注册设置 schema 用）
+node test/smoke.mjs     # 契约 / 两个席位 / 换行样式 / 三套渲染 / 设置驱动 / 点击防抖
 ```
 
-改代码时要知道的几件事（DSH 插件的契约与两个实测陷阱、以及一个不开浏览器也能定位布局问题的
-自检开关）见 **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**。
+改代码前值得先看一眼 **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**：DSH 插件的两条硬契约、
+三个实测陷阱（宿主改动为何要 `?v=N`、共用行的 `display: contents` 包装层、不开浏览器定位布局问题
+的自检开关）、以及设置项为什么要宿主 schema + 浏览器卡片两半。
 
 ## 许可证
 
