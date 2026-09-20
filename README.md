@@ -74,7 +74,7 @@ dsh plugin --profile web add link:D:\path\to\dsh-money
 ```
 
 - 路径必须写成**绝对 `file:///` URL**；
-- profile 的 `patchReload` 是 `live`：宿主半改动**不必重启 DSH**，但**每次改 `lib/index.js` 都要把 `?v=N` 加一**，否则会继续跑 ESM 缓存里的旧代码（详见「开发」一节）；
+- profile 的 `patchReload` 是 `live`：宿主半改动**不必重启 DSH**，但**每次改 `lib/index.js` 都要把 `?v=N` 加一**，否则会继续跑 ESM 缓存里的旧代码（原因见 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)）；
 - 浏览器半是新的客户端模块行，**需要刷新一次页面**（F5）才会挂上。
 
 ### 装完自检
@@ -147,7 +147,7 @@ BalanceBadge 挂到 sidebar.footer.action 席位
   注册到官方声明的加性席位 `sidebar.footer.action` —— 也就是 `.footArea` 里 `sidebar.settings`
   的正上方。不改 DSH 前端，也不往 React 管理的 DOM 里塞节点。
 
-## 开发
+## 目录结构
 
 ```
 dsh-money/
@@ -159,54 +159,6 @@ dsh-money/
 ├── test/smoke.mjs      # 零依赖契约冒烟测试
 └── LICENSE             # MIT
 ```
-
-```powershell
-node test/smoke.mjs     # 契约 / 换行样式 / 三套渲染 / 点击防抖
-```
-
-### 改哪里
-
-| 想改 | 动哪 | 生效方式 |
-|---|---|---|
-| 文案、颜色、格式、刷新间隔 | `lib/client.js` | 刷新页面（DSH 按文件字节算 bundle rev） |
-| 接口地址、超时、缓存、字段路径 | `lib/index.js` | **patch 里的 `?v=N` 加一**（见坑 3） |
-| 挂到别的位置 | `ctx.slots.inject('<slot 名>', …)` | 刷新页面 |
-
-### 四个容易踩的坑（都踩过）
-
-1. **宿主半绝不能写 `export default`**：DSH Loader 取 `exports.default ?? exports`，一旦有默认导出，
-   `inject` / `name` 会被整体丢弃，插件会在没注入任何服务的环境里运行（官方事故复盘 `docs/postmortem/0001`）。
-2. **浏览器半必须是 closure 形态**：`window.__ModuleLoader__.load({ id, factory })`，`id` 等于包名，
-   返回的 `module.exports` 上是**命名导出** `apply` / `inject`；不要写成 `module.exports = function`。
-   `test/smoke.mjs` 就是守这两条的。
-3. **改了 `lib/index.js` 必须改 patch 里的 `?v=N`**：profile 的 `patchReload: live` 只保证
-   「patch 变了就重新组装」，**不会因为插件自己的 `.js` 变了就重新 import**；不改版本号就会继续跑
-   ESM 缓存里的旧代码（实测踩过：新加的分支完全没生效，查了半天才发现是缓存）。
-4. **给共用行加样式要穿过一层 `display: contents`**：DSH 的 slot 渲染器会给每个占位者套一层
-   `display: contents` 的包装 div（错误边界），所以 `:has(> [data-testid="dsh-money"])` 命中的是那层
-   **不生成盒子**的包装层，样式打上去等于没打。本插件改用类名后缀 `[class*="footerActions"]` 命中
-   真正的行容器，并用 `:has(> * > [data-testid="dsh-money"])` 作为类名变动时的兜底。
-
-### 与同席位其它插件共存
-
-`sidebar.footer.action` 的官方占用者（如 `ui-cordis`）与第三方 `dsh-bg-new`（「壁纸」按钮）都用
-`width: calc(100% + 4px)` 占满整行且不收缩 —— 这是「一行只住一个占满整行的占用者」的写法，两个同时
-存在时**排在后面的会被顶出侧栏边缘**（本插件第一版就是这么消失的：按钮 x=268，而侧栏只到 268）。
-
-因此本插件给这条共用的行加了 `flex-wrap: wrap`（**不修改任何其它插件的代码**）：壁纸占它自己那一行，
-余额落到下一行，两边都完整可见。不想要这个换行，删掉 `lib/client.js` 里 `CSS_TEXT` 的第一条即可。
-
-### 布局自检（排障用）
-
-`lib/client.js` 顶部有 `const DIAG = false`。改成 `true` 后，浏览器半会在挂载 / 切宽窄 / 窗口变化时把
-**这一行的实测布局**（自己与最近 4 层祖先的尺寸、`display`、`flex-wrap`、`overflow`，以及同容器里其它
-兄弟按钮的 `flex` / 宽度）回传宿主，落在 `$DSH_HOME/.dsh-money-diag.json`：
-
-```powershell
-Get-Content "$env:DSH_HOME\.dsh-money-diag.json" -Raw   # 看 chain[0..3] 与 chain[1].kids
-```
-
-「被挤成一个字」「位置跑到侧栏外面」「根本没渲染」这类问题，靠它不用截图就能定位。
 
 ## 卸载
 
@@ -220,11 +172,23 @@ dsh plugin --profile web remove dsh-money
 
 - 只显示 **DeepSeek 官方接口能查到的余额**（`/user/balance`），不提供消费流水。
 - 余额是**快照**：接口不返回流水，充值/扣费发生在两次刷新之间时只能看到净变化。
+- **与其它同席位插件的关系**：本插件挂在侧栏底部的加性席位 `sidebar.footer.action` 上，
+  并让该行允许换行 —— 因此当同一行还住着「壁纸」这类占满整行的按钮时，两者各占一行、
+  互不挤压。本插件不修改任何其它插件的代码。
 - **包名与 npm 上的同名包冲突**：npm 的 `dsh-money` 是另一个项目（`yanhuifair`，功能相近），
   所以本插件不能（也不该）从 npm 安装，请用 GitHub 或 `link:`。两者若被同时装进同一个 profile，
   DSH 会因「同名包解析到多个活动 Loader 源」而拒绝启动相关插件。
 - DSH 处于 developer preview，席位名与 `/api` 通道语义可能随版本变化；插件不生效时先看
   `dsh --profile web --dump-config` 里有没有 `dsh-money`。
+
+## 开发
+
+```powershell
+node test/smoke.mjs     # 契约 / 换行样式 / 三套渲染 / 点击防抖
+```
+
+改代码时要知道的几件事（DSH 插件的契约与两个实测陷阱、以及一个不开浏览器也能定位布局问题的
+自检开关）见 **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**。
 
 ## 许可证
 
