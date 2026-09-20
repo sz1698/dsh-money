@@ -33,11 +33,13 @@
 
 ### 方式 A：从 npm 安装
 
-```powershell
-dsh plugin --profile web add dsh-money
-```
-
-> npm 上若还没有这个包名，用下面的方式 B / C。
+> ⚠️ **暂时不要执行 `dsh plugin --profile web add dsh-money`**：npm 上的 `dsh-money`
+> 是**另一个项目**（作者 `yanhuifair`，v1.1.9，功能相近的"余额 + 费用追踪"），
+> 装它会装成别人的插件。本插件目前**尚未发布到 npm**，请用方式 B / C 安装。
+>
+> 等它以自己独立的包名发布后，这里会给出确切命令；在那之前，
+> 也请不要让两个同名包同时存在 —— DSH 按包名去重 loader 源，同名的两个包会直接抛
+> `resolves from multiple active Loader sources`。
 
 ### 方式 B：从 GitHub 安装
 
